@@ -27,7 +27,7 @@ func ManageRedis() *cli.Command {
 				Usage: "Start a Redis container",
 				Action: func(c *cli.Context) error {
 					if err := startRedisContainer(); err != nil {
-						return errors.New(fmt.Sprintf("🛑 Error starting Redis container: %v", err))
+						return err
 					}
 
 					return nil
@@ -38,7 +38,7 @@ func ManageRedis() *cli.Command {
 				Usage: "Stop a Redis container",
 				Action: func(c *cli.Context) error {
 					if err := stopRedisContainer(); err != nil {
-						return errors.New(fmt.Sprintf("🛑 Error stopping Redis container: %v", err))
+						return err
 					}
 
 					return nil
@@ -49,9 +49,9 @@ func ManageRedis() *cli.Command {
 				Usage: "Check the status of the Redis container",
 				Action: func(c *cli.Context) error {
 					if redisContainerExists() {
-						fmt.Println("Redis container is running ✅")
+						fmt.Println("✅ redis container is running")
 					} else {
-						fmt.Println("Redis container is not running ❌")
+						fmt.Println("❌ redis container is not running")
 					}
 
 					return nil
@@ -76,7 +76,7 @@ func redisContainerExists() bool {
 
 func startRedisContainer() error {
 	if redisContainerExists() {
-		return errors.New("redis container is already running")
+		return errors.New("❌ redis container is already running")
 	}
 
 	portBinding := nat.PortMap{
@@ -104,32 +104,32 @@ func startRedisContainer() error {
 	out, err := dockerClient.ImagePull(context.Background(), RedisImage, image.PullOptions{})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error pulling image: %v", err)
 	}
 
 	defer func(out io.ReadCloser) {
 		err := out.Close()
 		if err != nil {
-			log.Fatalf("Error closing image pull response: %v", err)
+			log.Fatalf("❌ error closing image pull response: %v", err)
 		}
 	}(out)
 
 	_, err = io.Copy(os.Stdout, out)
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error copying image pull response: %v", err)
 	}
 
 	resp, err := dockerClient.ContainerCreate(context.Background(), containerConfig, hostConfig, nil, nil, "")
 
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error creating container: %v", err)
 	}
 
-	if err := dockerClient.ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
-		return err
+	if err = dockerClient.ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("❌ error starting container: %v", err)
 	}
 
-	fmt.Println("Redis container started successfully 🚀")
+	fmt.Println("✅ redis container started successfully")
 
 	return nil
 }
@@ -139,14 +139,14 @@ func stopRedisContainer() error {
 	runningRedisContainer := docker.GetRunningContainerByImage(RedisImage)
 
 	if runningRedisContainer == nil {
-		return errors.New("redis container is not running")
+		return errors.New("❌ redis container is not running")
 	}
 
 	if err := dockerClient.ContainerStop(context.Background(), runningRedisContainer.ID, container.StopOptions{}); err != nil {
-		return err
+		return fmt.Errorf("❌ error stopping container: %v", err)
 	}
 
-	fmt.Println("Redis container stopped successfully ✋🏻")
+	fmt.Println("✅ redis container stopped successfully")
 
 	return nil
 }
