@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"errors"
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"os"
@@ -19,7 +18,7 @@ func ManageProxyman() *cli.Command {
 				Usage: "Open Proxyman terminal",
 				Action: func(c *cli.Context) error {
 					if err := openProxymanTerminal(); err != nil {
-						return errors.New(fmt.Sprintf("🛑 Error opening Proxyman terminal: %v", err))
+						return err
 					}
 
 					return nil
@@ -38,7 +37,7 @@ func openProxymanTerminal() error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return err
+		return fmt.Errorf("❌ error running command: %v", err)
 	}
 
 	return nil

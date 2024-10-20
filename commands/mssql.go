@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -31,7 +32,7 @@ func ManageMSSQL() *cli.Command {
 				Usage: "Start a MSSQL container",
 				Action: func(c *cli.Context) error {
 					if err := startMssqlContainer(); err != nil {
-						return errors.New(fmt.Sprintf("🛑 Error starting MSSQL container: %v", err))
+						return err
 					}
 
 					return nil
@@ -42,7 +43,7 @@ func ManageMSSQL() *cli.Command {
 				Usage: "Stop a MSSQL container",
 				Action: func(c *cli.Context) error {
 					if err := stopMssqlContainer(); err != nil {
-						return errors.New(fmt.Sprintf("🛑 Error stopping MSSQL container: %v", err))
+						return err
 					}
 
 					return nil
@@ -53,9 +54,9 @@ func ManageMSSQL() *cli.Command {
 				Usage: "Check the status of the MSSQL container",
 				Action: func(c *cli.Context) error {
 					if mssqlContainerExists() {
-						fmt.Println("MSSQL container is running ✅")
+						fmt.Println("✅ MSSQL container is running")
 					} else {
-						fmt.Println("MSSQL container is not running ❌")
+						fmt.Println("❌ MSSQL container is not running")
 					}
 
 					return nil
@@ -70,6 +71,50 @@ func ManageMSSQL() *cli.Command {
 					return nil
 				},
 			},
+			{
+				Name:  "db:create",
+				Usage: "Create a database in MSSQL",
+				Action: func(c *cli.Context) error {
+					if !mssqlContainerExists() {
+						return errors.New("❌ you need to start the MSSQL container first before creating a database")
+					}
+
+					if c.NArg() == 0 {
+						return errors.New("❌ please provide a database name")
+					}
+
+					dbName := c.Args().First()
+					if err := createMSSQLDatabase(dbName); err != nil {
+						return err
+					} else {
+						fmt.Println("✅ database created successfully")
+					}
+
+					return nil
+				},
+			},
+			{
+				Name:  "db:drop",
+				Usage: "Drop a database in MSSQL",
+				Action: func(c *cli.Context) error {
+					if !mssqlContainerExists() {
+						return errors.New("❌ you need to start the MSSQL container first before dropping a database")
+					}
+
+					if c.NArg() == 0 {
+						return errors.New("❌ please provide a database name")
+					}
+
+					dbName := c.Args().First()
+					if err := dropMSSQLDatabase(dbName); err != nil {
+						return err
+					} else {
+						fmt.Println("✅ database dropped successfully")
+					}
+
+					return nil
+				},
+			},
 		},
 	}
 }
@@ -80,7 +125,7 @@ func mssqlContainerExists() bool {
 
 func startMssqlContainer() error {
 	if mssqlContainerExists() {
-		return errors.New("mssql container is already running")
+		return errors.New("❌ MSSQL container is already running")
 	}
 
 	portBinding := nat.PortMap{
@@ -112,32 +157,32 @@ func startMssqlContainer() error {
 	out, err := dockerClient.ImagePull(context.Background(), MssqlImage, image.PullOptions{})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error pulling image: %v", err)
 	}
 
 	defer func(out io.ReadCloser) {
 		err := out.Close()
 		if err != nil {
-			log.Fatalf("Error closing image pull response: %v", err)
+			log.Fatalf("❌ error closing image pull response: %v", err)
 		}
 	}(out)
 
 	_, err = io.Copy(os.Stdout, out)
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error copying image pull response: %v", err)
 	}
 
 	resp, err := dockerClient.ContainerCreate(context.Background(), containerConfig, hostConfig, nil, nil, "")
 
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error creating container: %v", err)
 	}
 
-	if err := dockerClient.ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
-		return err
+	if err = dockerClient.ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("❌ error starting container: %v", err)
 	}
 
-	fmt.Println("MSSQL container started successfully 🚀")
+	fmt.Println("✅ MSSQL container started successfully")
 
 	return nil
 }
@@ -147,14 +192,14 @@ func stopMssqlContainer() error {
 	runningMssqlContainer := docker.GetRunningContainerByImage(MssqlImage)
 
 	if runningMssqlContainer == nil {
-		return errors.New("mssql container is not running")
+		return errors.New("❌ MSSQL container is not running")
 	}
 
 	if err := dockerClient.ContainerStop(context.Background(), runningMssqlContainer.ID, container.StopOptions{}); err != nil {
-		return err
+		return fmt.Errorf("❌ error stopping container: %v", err)
 	}
 
-	fmt.Println("MSSQL container stopped successfully ✋🏻")
+	fmt.Println("✅ MSSQL container stopped successfully")
 
 	return nil
 }
@@ -165,4 +210,32 @@ func mssqlConnectionStrings() string {
 	}
 
 	return strings.Join(formats[:], "\n")
+}
+
+func createMSSQLDatabase(dbName string) error {
+	execCmd := fmt.Sprintf("CREATE DATABASE %s", dbName)
+	cmd := exec.Command("sqlcmd", "-S", "localhost,1433", "-U", "sa", "-P", MssqlPassword, "-Q", execCmd)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("❌ error running command: %v", err)
+	}
+
+	return nil
+}
+
+func dropMSSQLDatabase(dbName string) error {
+	execCmd := fmt.Sprintf("DROP DATABASE %s", dbName)
+	cmd := exec.Command("sqlcmd", "-S", "localhost,1433", "-U", "sa", "-P", MssqlPassword, "-Q", execCmd)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("❌ error running command: %v", err)
+	}
+
+	return nil
 }

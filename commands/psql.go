@@ -12,10 +12,16 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 )
 
 const PsqlImage = "postgres:latest"
+
+var formats = []string{
+	"postgresql://postgres:metamorphmagus@localhost:5432/postgres",
+	"Host=localhost;Port=5432;Database=postgres;User ID=postgres;Password=metamorphmagus",
+}
 
 func ManagePSQL() *cli.Command {
 	return &cli.Command{
@@ -28,7 +34,7 @@ func ManagePSQL() *cli.Command {
 				Usage: "Start a PSQL container",
 				Action: func(c *cli.Context) error {
 					if err := startPSQLContainer(); err != nil {
-						return errors.New(fmt.Sprintf("🛑 Error starting PSQL container: %v", err))
+						return err
 					}
 
 					return nil
@@ -39,7 +45,7 @@ func ManagePSQL() *cli.Command {
 				Usage: "Stop a PSQL container",
 				Action: func(c *cli.Context) error {
 					if err := stopPSQLContainer(); err != nil {
-						return errors.New(fmt.Sprintf("🛑 Error stopping PSQL container: %v", err))
+						return err
 					}
 
 					return nil
@@ -50,9 +56,9 @@ func ManagePSQL() *cli.Command {
 				Usage: "Check the status of the PSQL container",
 				Action: func(c *cli.Context) error {
 					if psqlContainerExists() {
-						fmt.Println("PSQL container is running ✅")
+						fmt.Println("✅ PSQL container is running")
 					} else {
-						fmt.Println("PSQL container is not running ❌")
+						fmt.Println("❌ PSQL container is not running")
 					}
 
 					return nil
@@ -67,6 +73,50 @@ func ManagePSQL() *cli.Command {
 					return nil
 				},
 			},
+			{
+				Name:  "db:create",
+				Usage: "Create a new database",
+				Action: func(c *cli.Context) error {
+					if !psqlContainerExists() {
+						return errors.New("❌ you need to start the PSQL container first before creating a database")
+					}
+
+					if c.NArg() == 0 {
+						return errors.New("❌ please provide a database name")
+					}
+
+					dbName := c.Args().First()
+					if err := createDatabase(dbName); err != nil {
+						return err
+					} else {
+						fmt.Println("✅ database created successfully")
+					}
+
+					return nil
+				},
+			},
+			{
+				Name:  "db:drop",
+				Usage: "Drop an existing database",
+				Action: func(c *cli.Context) error {
+					if !psqlContainerExists() {
+						return errors.New("❌ you need to start the PSQL container first before dropping a database")
+					}
+
+					if c.NArg() == 0 {
+						return errors.New("❌ please provide a database name")
+					}
+
+					dbName := c.Args().First()
+					if err := dropDatabase(dbName); err != nil {
+						return err
+					} else {
+						fmt.Println("✅ database dropped successfully")
+					}
+
+					return nil
+				},
+			},
 		},
 	}
 }
@@ -77,7 +127,7 @@ func psqlContainerExists() bool {
 
 func startPSQLContainer() error {
 	if psqlContainerExists() {
-		return errors.New("PSQL container already running")
+		return errors.New("❌ PSQL container already running")
 	}
 
 	portBinding := nat.PortMap{
@@ -93,6 +143,8 @@ func startPSQLContainer() error {
 		Image: PsqlImage,
 		Env: []string{
 			"POSTGRES_PASSWORD=metamorphmagus",
+			"POSTGRES_USER=postgres",
+			"POSTGRES_DB=postgres",
 		},
 		ExposedPorts: nat.PortSet{
 			"5432/tcp": struct{}{},
@@ -108,32 +160,32 @@ func startPSQLContainer() error {
 	out, err := dockerClient.ImagePull(context.Background(), PsqlImage, image.PullOptions{})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error pulling image: %v", err)
 	}
 
 	defer func(out io.ReadCloser) {
 		err := out.Close()
 		if err != nil {
-			log.Fatalf("Error closing image pull response: %v", err)
+			log.Fatalf("❌ error closing image pull response: %v", err)
 		}
 	}(out)
 
 	_, err = io.Copy(os.Stdout, out)
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error copying image pull response: %v", err)
 	}
 
 	resp, err := dockerClient.ContainerCreate(context.Background(), containerConfig, hostConfig, nil, nil, "")
 
 	if err != nil {
-		return err
+		return fmt.Errorf("❌ error creating container: %v", err)
 	}
 
-	if err := dockerClient.ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
-		return err
+	if err = dockerClient.ContainerStart(context.Background(), resp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("❌ error starting container: %v", err)
 	}
 
-	fmt.Println("PSQL container started successfully ✅")
+	fmt.Println("✅ PSQL container started successfully")
 
 	return nil
 }
@@ -143,23 +195,46 @@ func stopPSQLContainer() error {
 	runningContainer := docker.GetRunningContainerByImage(PsqlImage)
 
 	if runningContainer == nil {
-		return errors.New("PSQL container is not running")
+		return errors.New("❌ PSQL container is not running")
 	}
 
 	if err := dockerClient.ContainerStop(context.Background(), runningContainer.ID, container.StopOptions{}); err != nil {
-		return err
+		return fmt.Errorf("❌ error stopping container: %v", err)
 	}
 
-	fmt.Println("PSQL container stopped successfully ✋🏻")
+	fmt.Println("✅ PSQL container stopped successfully")
 
 	return nil
 }
 
 func psqlConnectionStrings() string {
-	formats := []string{
-		"postgresql://postgres:metamorphmagus@localhost:5432/postgres",
-		"Host=localhost;Port=5432;Database=postgres;User ID=postgres",
+	return strings.Join(formats[:], "\n")
+}
+
+func createDatabase(dbName string) error {
+	execCmd := fmt.Sprintf("psql \"%s\" -c \"CREATE DATABASE %s;\"", formats[0], dbName)
+	cmd := exec.Command("sh", "-c", execCmd)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("❌ error running command: %v", err)
 	}
 
-	return strings.Join(formats[:], "\n")
+	return nil
+}
+
+func dropDatabase(dbName string) error {
+	execCmd := fmt.Sprintf("psql \"%s\" -c \"DROP DATABASE %s;\"", formats[0], dbName)
+	cmd := exec.Command("sh", "-c", execCmd)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("❌ error running command: %v", err)
+	}
+
+	return nil
 }
