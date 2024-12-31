@@ -14,7 +14,7 @@ import (
 	"os"
 )
 
-const RedisImage = "redis"
+const RedisImage = "redis:7.4"
 
 func ManageRedis() *cli.Command {
 	return &cli.Command{

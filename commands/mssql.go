@@ -128,6 +128,11 @@ func startMssqlContainer() error {
 		return errors.New("❌ MSSQL container is already running")
 	}
 
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("❌ error getting user home directory: %v", err)
+	}
+
 	portBinding := nat.PortMap{
 		"1433/tcp": []nat.PortBinding{
 			{
@@ -148,8 +153,11 @@ func startMssqlContainer() error {
 		},
 	}
 
+	volumePath := homeDir + "/docker_volumes/mssql_data"
+
 	hostConfig := &container.HostConfig{
 		PortBindings: portBinding,
+		Binds:        []string{volumePath + ":/var/opt/mssql"},
 	}
 
 	dockerClient := docker.Client

@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-const PsqlImage = "postgres:latest"
+const PsqlImage = "postgres:17.2"
 
 var formats = []string{
 	"postgresql://postgres:metamorphmagus@localhost:5432/postgres",
@@ -86,7 +86,7 @@ func ManagePSQL() *cli.Command {
 					}
 
 					dbName := c.Args().First()
-					if err := createDatabase(dbName); err != nil {
+					if err := createPSQLDatabase(dbName); err != nil {
 						return err
 					} else {
 						fmt.Println("✅ database created successfully")
@@ -108,7 +108,7 @@ func ManagePSQL() *cli.Command {
 					}
 
 					dbName := c.Args().First()
-					if err := dropDatabase(dbName); err != nil {
+					if err := dropPSQLDatabase(dbName); err != nil {
 						return err
 					} else {
 						fmt.Println("✅ database dropped successfully")
@@ -128,6 +128,11 @@ func psqlContainerExists() bool {
 func startPSQLContainer() error {
 	if psqlContainerExists() {
 		return errors.New("❌ PSQL container already running")
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("❌ error getting user home directory: %v", err)
 	}
 
 	portBinding := nat.PortMap{
@@ -151,8 +156,11 @@ func startPSQLContainer() error {
 		},
 	}
 
+	volumePath := homeDir + "/docker_volumes/psql_data"
+
 	hostConfig := &container.HostConfig{
 		PortBindings: portBinding,
+		Binds:        []string{volumePath + ":/var/lib/postgresql/data"},
 	}
 
 	dockerClient := docker.Client
@@ -211,7 +219,7 @@ func psqlConnectionStrings() string {
 	return strings.Join(formats[:], "\n")
 }
 
-func createDatabase(dbName string) error {
+func createPSQLDatabase(dbName string) error {
 	execCmd := fmt.Sprintf("psql \"%s\" -c \"CREATE DATABASE %s;\"", formats[0], dbName)
 	cmd := exec.Command("sh", "-c", execCmd)
 
@@ -225,7 +233,7 @@ func createDatabase(dbName string) error {
 	return nil
 }
 
-func dropDatabase(dbName string) error {
+func dropPSQLDatabase(dbName string) error {
 	execCmd := fmt.Sprintf("psql \"%s\" -c \"DROP DATABASE %s;\"", formats[0], dbName)
 	cmd := exec.Command("sh", "-c", execCmd)
 

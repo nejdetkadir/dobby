@@ -13,6 +13,8 @@ func main() {
 		commands.ManageMSSQL(),
 		commands.ManagePSQL(),
 		commands.ManageProxyman(),
+		commands.ManagerRandom(),
+		commands.ManageProcess(),
 	}
 
 	app := &cli.App{
