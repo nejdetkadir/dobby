@@ -2,9 +2,10 @@ package main
 
 import (
 	"dobby/commands"
-	"github.com/urfave/cli/v2"
 	"log"
 	"os"
+
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -15,6 +16,9 @@ func main() {
 		commands.ManageProxyman(),
 		commands.ManagerRandom(),
 		commands.ManageProcess(),
+		commands.ManageRabbitMQ(),
+		commands.ManageElasticsearch(),
+		commands.ManageMongoDB(),
 	}
 
 	app := &cli.App{
