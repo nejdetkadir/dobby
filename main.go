@@ -19,6 +19,7 @@ func main() {
 		commands.ManageRabbitMQ(),
 		commands.ManageElasticsearch(),
 		commands.ManageMongoDB(),
+		commands.ManageLocalStack(),
 	}
 
 	app := &cli.App{
