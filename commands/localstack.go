@@ -104,7 +104,7 @@ func startLocalStackContainer() error {
 	containerConfig := &container.Config{
 		Image: LocalStackImage,
 		Env: []string{
-			"SERVICES=s3,sqs",
+			"SERVICES=s3,sqs,sns",
 			"DEBUG=1",
 		},
 		ExposedPorts: nat.PortSet{
