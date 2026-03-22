@@ -20,6 +20,7 @@ func main() {
 		commands.ManageElasticsearch(),
 		commands.ManageMongoDB(),
 		commands.ManageLocalStack(),
+		commands.ManageKafka(),
 	}
 
 	app := &cli.App{
