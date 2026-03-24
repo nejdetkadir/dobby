@@ -13,6 +13,7 @@ func main() {
 		commands.ManageRedis(),
 		commands.ManageMSSQL(),
 		commands.ManagePSQL(),
+		commands.ManagePostGIS(),
 		commands.ManageProxyman(),
 		commands.ManagerRandom(),
 		commands.ManageProcess(),
