@@ -5,18 +5,19 @@ import (
 	"dobby/docker"
 	"errors"
 	"fmt"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/go-connections/nat"
-	"github.com/urfave/cli/v2"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/go-connections/nat"
+	"github.com/urfave/cli/v2"
 )
 
-const PsqlImage = "postgres:17.2"
+const PsqlImage = "postgres:18"
 
 var formats = []string{
 	"postgresql://postgres:metamorphmagus@localhost:5432/postgres",

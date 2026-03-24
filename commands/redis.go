@@ -5,16 +5,17 @@ import (
 	"dobby/docker"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"os"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/go-connections/nat"
 	"github.com/urfave/cli/v2"
-	"io"
-	"log"
-	"os"
 )
 
-const RedisImage = "redis:7.4"
+const RedisImage = "redis:8"
 
 func ManageRedis() *cli.Command {
 	return &cli.Command{
